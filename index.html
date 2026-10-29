@@ -367,6 +367,8 @@
             <div class="track-info"><span id="readoutFormat">—</span><span id="readoutDuration">—</span></div>
             <div class="btn-row">
               <button class="btn btn-sm" id="changeCoverBtn" type="button">Change cover</button>
+              <button class="btn btn-sm" id="reloadCoverBtn" type="button" title="Restore the cover embedded in the audio file" disabled>Reload cover</button>
+              <button class="btn btn-sm btn-ghost" id="removeCoverBtn" type="button" title="Remove the cover art from the clip" disabled>Remove cover</button>
               <input type="file" id="coverInput" accept="image/*">
               <button class="btn btn-sm btn-ghost" id="changeFileBtn" type="button">Replace audio</button>
             </div>
@@ -519,6 +521,8 @@
     title: '',
     artist: '',
     coverImg: null,       // HTMLImageElement or null
+    embeddedCover: null,  // Blob of the cover art embedded in the audio file (or null)
+    coverSource: 'none',  // 'embedded' | 'custom' | 'none'
     accent: '#E8A33D',
     themeId: 'amber',     // selected video theme, see THEMES below
     finePeaks: null,      // Float32Array ~400 buckets, for timeline
@@ -1029,6 +1033,7 @@
     $('readoutFormat').textContent = `${state.formatLabel}, ${Math.round(state.sampleRate/1000)} kHz, ${state.bitrateKbps} kbps, ${state.channels>=2?'Stereo':'Mono'}`;
     $('readoutDuration').textContent = formatTime(state.duration);
 
+    state.embeddedCover = (tags && tags.pictureBlob) || null;
     if(tags && tags.pictureBlob){
       try{
         await setCoverFromBlob(tags.pictureBlob);
@@ -1089,6 +1094,15 @@
     const el = $('coverThumb');
     el.removeAttribute('src');
     $('coverThumbWrap').classList.add('empty');
+    state.coverSource = 'none';
+    updateCoverButtons();
+  }
+
+  // Remove: needs a cover. Reload: needs an embedded cover that isn't already the one shown.
+  function updateCoverButtons(){
+    const rm = $('removeCoverBtn'), rl = $('reloadCoverBtn');
+    if(rm) rm.disabled = !state.coverImg;
+    if(rl) rl.disabled = !state.embeddedCover || state.coverSource==='embedded';
   }
 
   function setCoverThumbImage(url){
@@ -1132,7 +1146,9 @@
       img.onload = ()=>{
         state.coverImg = img;
         state.accent = averageColor(img);
+        state.coverSource = (blob===state.embeddedCover) ? 'embedded' : 'custom';
         setCoverThumbImage(url);
+        updateCoverButtons();
         finish();
       };
       img.onerror = ()=>{
@@ -2295,6 +2311,22 @@
       await setCoverFromBlob(f);
       renderPreviewStatic();
     });
+    $('removeCoverBtn').addEventListener('click', ()=>{
+      if(state.exportActive || !state.coverImg) return;
+      state.coverImg = null;
+      state.accent = '#E8A33D';
+      $('coverInput').value = '';
+      clearCoverThumb();
+      renderPreviewStatic();
+      setStatus('Cover removed.');
+    });
+    $('reloadCoverBtn').addEventListener('click', async ()=>{
+      if(state.exportActive || !state.embeddedCover) return;
+      await setCoverFromBlob(state.embeddedCover);
+      renderPreviewStatic();
+      if(state.coverImg) setStatus('Embedded cover restored.');
+      else setStatus('Could not load the embedded cover.', true);
+    });
 
     $('titleInput').addEventListener('input', renderPreviewStatic);
     $('artistInput').addEventListener('input', renderPreviewStatic);
@@ -2493,6 +2525,15 @@
     if(e.target.matches && e.target.matches('input[type=text]')) setTimeout(()=>e.target.scrollIntoView({block:'center',behavior:'auto'}),250);
   });
 })();
+</script>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-ZCG9XRSBYE"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-ZCG9XRSBYE');
 </script>
 </body>
 </html>
