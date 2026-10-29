@@ -11,7 +11,7 @@ ClipMaker is a **single-file web app** (`clipmaker.html`). Pick the part of a tr
 ## Features
 
 - **Drag & drop audio**: MP3, WAV, M4A, OGG or FLAC.
-- **Automatic metadata**: title, artist and embedded cover art are read from ID3 (MP3), FLAC and MP4/M4A tags. Everything stays editable, and you can swap in your own cover image.
+- **Automatic metadata**: title, artist and embedded cover art are read from ID3 (MP3), FLAC and MP4/M4A tags. Everything stays editable. Swap in your own cover image, remove the cover, or reload the one embedded in the audio file.
 - **Clip selection on a waveform timeline**
   - Drag the amber handles to trim.
   - Drag the highlighted area to slide the whole clip.
