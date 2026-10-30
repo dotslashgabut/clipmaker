@@ -8,9 +8,12 @@ Turn a song into a shareable vertical-friendly video clip, entirely in your brow
 
 ClipMaker is a **single-file web app** (`clipmaker.html`). Pick the part of a track you like, and it renders an animated card with cover art, title, artist, track details and a live waveform visualizer, then exports it as a video ready to post. Nothing is uploaded: decoding, rendering and encoding all happen locally.
 
-<img width="1366" height="641" alt="ClipMaker_1" src="https://github.com/user-attachments/assets/8a7737a9-0532-4bc2-b350-8b13944a5fb8" />
-
-<img width="1366" height="641" alt="ClipMaker_2" src="https://github.com/user-attachments/assets/1f197498-74df-4d04-aaf1-a5eb779de048" />
+<table>
+<tr>
+<td><img width="1366" height="641" alt="ClipMaker_1" src="https://github.com/user-attachments/assets/8a7737a9-0532-4bc2-b350-8b13944a5fb8" /></td>
+<td><img width="1366" height="641" alt="ClipMaker_2" src="https://github.com/user-attachments/assets/1f197498-74df-4d04-aaf1-a5eb779de048" /></td>
+</tr>
+</table>
 
 ## Features
 
