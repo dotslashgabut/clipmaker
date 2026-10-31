@@ -27,6 +27,7 @@ ClipMaker is a **single-file web app** (`clipmaker.html`). Pick the part of a tr
   - New tracks start with the first 30 s selected. Minimum selection length: 0.3 s.
 - **Live preview** rendered on a canvas, with a **seek bar** to scrub inside the selected clip. Tap the card or press <kbd>Space</kbd> to play or pause.
 - **Play clip and Loop**: audition the selection with **Play clip**, and switch on **Loop** to repeat it while you fine-tune the handles.
+- **Video as cover** (off by default): when you load a video, a **Use video as cover** toggle appears under *Style and format*. When on, the actual video plays inside the cover slot, in the preview and in the exported clip, instead of a still frame. The still cover is still used for the background glow. In the offline export every frame is seeked exactly, so this makes the export slower than a still cover. Removing the cover turns the option off.
 - **Themes**: Amber Glow, Midnight Blue, Mono Noir, Sunset Punch, Neon Pulse. Amber Glow takes its accent color from the cover art.
 - **Frame shapes**: 4:5, 1:1, 9:16, 2:3, 3:2, 16:9.
 - **Quality**: 720p or 1080p (the long edge of the frame is 1280 or 1920 px).
@@ -107,5 +108,5 @@ README.md
 - Audio-only export is always offline and applies no fades, normalization or effects. The selected range is exported as is.
 - Exporting is silent in both paths: audio is recorded into the video but not played through your speakers.
 - The output container (MP4 or WebM) depends on what your browser can encode. Offline export always produces MP4.
-- Video import only uses the audio: the picture is never part of the exported clip (apart from the optional cover frame). The whole file is read into memory to extract the audio, so very large videos may fail to load; if that happens, trim or compress the video first. A video with no audio track, or with an audio codec your browser cannot decode, cannot be used. MP4, MOV and WebM work best; MKV and others depend on the browser.
+- Video import only uses the audio unless you switch on **Use video as cover**: otherwise the picture is never part of the exported clip (apart from the cover frame). The whole file is read into memory to extract the audio, so very large videos may fail to load; if that happens, trim or compress the video first. A video with no audio track, or with an audio codec your browser cannot decode, cannot be used. MP4, MOV and WebM work best; MKV and others depend on the browser.
 - Very long or very high-bitrate files use more memory, since the audio is fully decoded in the browser, and the finished video is held in memory until you download it.
