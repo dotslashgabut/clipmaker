@@ -536,6 +536,23 @@
             </select>
           </div>
 
+          <div class="setting" id="coverStyleSetting">
+            <span class="setting-label" id="lblCoverStyle">Classic Card cover</span>
+            <div class="seg" role="group" aria-labelledby="lblCoverStyle" data-select="coverStyleSelect">
+              <button type="button" data-value="card">Boxed</button>
+              <button type="button" data-value="full">Full width / height</button>
+            </div>
+            <select id="coverStyleSelect" class="sr-only" tabindex="-1" aria-hidden="true">
+              <option value="card" selected>Boxed</option>
+              <option value="full">Full width / height</option>
+            </select>
+          </div>
+
+          <div class="setting">
+            <span class="setting-label" id="lblBgBlur">Background blur <span id="bgBlurVal" style="color:var(--ink-3); font-weight:400;">50%</span></span>
+            <input type="range" class="seek-range" id="bgBlurRange" min="0" max="100" step="5" value="50" style="width:100%; flex:none;" aria-labelledby="lblBgBlur">
+          </div>
+
           <div class="setting-pair">
             <div class="setting">
               <span class="setting-label" id="lblTextSize">Text size</span>
@@ -2470,6 +2487,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     textSize: 'md',        // 'sm' | 'md' | 'lg'
     textAlign: 'center',   // 'left' | 'center' | 'right'
     lyricsEdgeBlur: true,  // soft top & bottom blur feather on lyrics area
+    classicCoverFull: false, // Classic Card: cover fills the frame width (portrait) / height (landscape) instead of a boxed card
+    bgBlur: 50,              // background blur intensity 0..100 (both layouts)
     lyricsWordHighlight: true, // word-by-word sweep on the current line (off = whole line lit, good for line-level timestamps)
     lyricsSongPart: true,  // show song-part labels (Verse, Chorus...) above the first line of each section
     fontPreset: 'space',   // 'space' | 'inter' | 'mono' | 'serif' | 'custom'
@@ -3232,8 +3251,15 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     renderPreviewStatic();
   }
 
+  // Options that only apply to one layout
+  function syncLayoutOnlyUI(){
+    const el = $('coverStyleSetting');
+    if(el) el.style.display = (state.layoutMode === 'classic') ? '' : 'none';
+  }
+
   function setLayoutMode(mode){
     state.layoutMode = mode === 'lyrics' ? 'lyrics' : 'classic';
+    syncLayoutOnlyUI();
     const sel = $('layoutSelect');
     sel.value = state.layoutMode;
     document.querySelectorAll('[data-select="layoutSelect"] button').forEach(b=>{
@@ -4150,6 +4176,121 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   }
 
   // ---------- rendering (shared by preview + export) ----------
+  // Background blur intensity (0..100), scaled to the frame so preview and export look the same
+  function bgBlurPx(W, H){
+    const v = clamp(Number(state.bgBlur) || 0, 0, 100);
+    return (v / 100) * 140 * (Math.max(W, H) / 1920);
+  }
+  function bgFilter(W, H, brightness, saturate){
+    const b = bgBlurPx(W, H);
+    return (b > 0.4 ? `blur(${b.toFixed(1)}px) ` : '') + `brightness(${brightness}) saturate(${saturate})`;
+  }
+  // Full-bleed blurred cover backdrop (shared by Full Lyrics and the full-width Classic cover)
+  function drawBlurBackdrop(ctx, W, H, img, brightness, saturate, alpha){
+    ctx.save();
+    const maxDim = Math.max(W, H) * 1.45;
+    const ir = img.width / img.height;
+    let gw = maxDim, gh = maxDim;
+    if(ir > 1) gw = maxDim * ir;
+    else if(ir < 1) gh = maxDim / ir;
+    ctx.filter = bgFilter(W, H, brightness, saturate);
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(img, (W - gw)/2, (H - gh)/2, gw, gh);
+    ctx.filter = 'none';
+    ctx.restore();
+  }
+  // Blurred backdrop built from the SAME cover, mirrored outward from its edges, so the sharp cover
+  // dissolves into a seamless continuation of itself (no hard seam against a differently-scaled blur)
+  function drawMirroredBlurBackdrop(ctx, W, H, img, coverW, coverH, brightness, saturate, alpha){
+    const cw = Math.max(1, Math.ceil(coverW)), ch = Math.max(1, Math.ceil(coverH));
+    const tile = document.createElement('canvas');
+    tile.width = cw; tile.height = ch;
+    drawCoverFit(tile.getContext('2d'), img, img.width, img.height, 0, 0, cw, ch);
+
+    const pad = Math.ceil(bgBlurPx(W, H) * 2.5) + 8;
+    const ext = document.createElement('canvas');
+    ext.width = W + pad * 2; ext.height = H + pad * 2;
+    const ex = ext.getContext('2d');
+    const tx0 = Math.floor(-pad / cw), tx1 = Math.floor((W + pad - 1) / cw);
+    const ty0 = Math.floor(-pad / ch), ty1 = Math.floor((H + pad - 1) / ch);
+    for(let ty = ty0; ty <= ty1; ty++){
+      for(let tx = tx0; tx <= tx1; tx++){
+        const fx = (Math.abs(tx) % 2) === 1, fy = (Math.abs(ty) % 2) === 1;
+        ex.save();
+        ex.translate(pad + tx * cw + (fx ? cw : 0), pad + ty * ch + (fy ? ch : 0));
+        ex.scale(fx ? -1 : 1, fy ? -1 : 1);
+        ex.drawImage(tile, 0, 0);
+        ex.restore();
+      }
+    }
+    ctx.save();
+    ctx.filter = bgFilter(W, H, brightness, saturate);
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(ext, -pad, -pad);
+    ctx.filter = 'none';
+    ctx.restore();
+  }
+
+  // Full-size cover whose far edge (bottom in portrait, right in landscape) dissolves into the blurred background
+  let _coverFadeLayer = null;
+  function drawFadedCover(ctx, src, sw, sh, x, y, w, h, vertical, fadeFrac){
+    const lw = Math.max(1, Math.ceil(w)), lh = Math.max(1, Math.ceil(h));
+    if(!_coverFadeLayer || _coverFadeLayer.c.width !== lw || _coverFadeLayer.c.height !== lh){
+      const c = document.createElement('canvas');
+      c.width = lw; c.height = lh;
+      _coverFadeLayer = { c, x: c.getContext('2d') };
+    }
+    const lx = _coverFadeLayer.x;
+    lx.globalCompositeOperation = 'source-over';
+    lx.clearRect(0, 0, lw, lh);
+    drawCoverFit(lx, src, sw, sh, 0, 0, lw, lh);
+    // Eased fade over the far edge of the image
+    const f = fadeFrac || 0.30;
+    const g = vertical ? lx.createLinearGradient(0, 0, 0, lh) : lx.createLinearGradient(0, 0, lw, 0);
+    const steps = 8;
+    for(let k = 0; k <= steps; k++){
+      const t = k / steps;
+      g.addColorStop((1 - f) + f * t, `rgba(0,0,0,${(0.5 + 0.5 * Math.cos(Math.PI * t)).toFixed(3)})`);
+    }
+    g.addColorStop(0, 'rgba(0,0,0,1)');
+    lx.globalCompositeOperation = 'destination-in';
+    lx.fillStyle = g;
+    lx.fillRect(0, 0, lw, lh);
+    lx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(_coverFadeLayer.c, x, y, w, h);
+  }
+
+  // Object-fit: cover drawing of an image/video into a rect
+  function drawCoverFit(ctx, img, iw, ih, x, y, w, h){
+    const ir = iw / ih, rr = w / h;
+    let dw, dh, dx, dy;
+    if(ir > rr){ dh = h; dw = h * ir; dx = x - (dw - w)/2; dy = y; }
+    else { dw = w; dh = w / ir; dx = x; dy = y - (dh - h)/2; }
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+
+  let _lyricBackdrop = null;
+  function getLyricBackdrop(W, H, theme, accent){
+    const key = [W, H, state.themeId, accent, state.bgBlur, state.coverImg ? state.coverImg.src : ''].join('|');
+    if(_lyricBackdrop && _lyricBackdrop.key === key) return _lyricBackdrop.canvas;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    const bg = x.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, theme.bgTop);
+    bg.addColorStop(1, theme.bgBottom);
+    x.fillStyle = bg;
+    x.fillRect(0, 0, W, H);
+    if(state.coverImg) drawBlurBackdrop(x, W, H, state.coverImg, 0.42, 1.35, 0.85);
+    const rad = x.createRadialGradient(W*0.5, H*0.42, Math.min(W,H)*0.08, W*0.5, H*0.42, Math.max(W,H)*0.85);
+    rad.addColorStop(0, hexToRgba(accent, 0.22));
+    rad.addColorStop(1, 'rgba(6,6,9,0.72)');
+    x.fillStyle = rad;
+    x.fillRect(0, 0, W, H);
+    _lyricBackdrop = { key, canvas: c };
+    return c;
+  }
+
   function roundRectPath(ctx,x,y,w,h,r){
     ctx.beginPath();
     ctx.moveTo(x+r,y);
@@ -4282,32 +4423,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     const textScale = getTextScale();
     const align = state.textAlign || 'center';
 
-    // 1. Rich Full-Bleed Backdrop
-    const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, theme.bgTop);
-    bg.addColorStop(1, theme.bgBottom);
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, W, H);
-
-    if(state.coverImg){
-      ctx.save();
-      const maxDim = Math.max(W, H) * 1.45;
-      const ir = state.coverImg.width / state.coverImg.height;
-      let gw = maxDim, gh = maxDim;
-      if(ir > 1) gw = maxDim * ir;
-      else if(ir < 1) gh = maxDim / ir;
-      ctx.filter = 'blur(72px) brightness(0.42) saturate(1.35)';
-      ctx.globalAlpha = 0.85;
-      ctx.drawImage(state.coverImg, (W - gw)/2, (H - gh)/2, gw, gh);
-      ctx.filter = 'none';
-      ctx.restore();
-    }
-
-    const rad = ctx.createRadialGradient(W*0.5, H*0.42, Math.min(W,H)*0.08, W*0.5, H*0.42, Math.max(W,H)*0.85);
-    rad.addColorStop(0, hexToRgba(accent, 0.22));
-    rad.addColorStop(1, 'rgba(6,6,9,0.72)');
-    ctx.fillStyle = rad;
-    ctx.fillRect(0, 0, W, H);
+    // 1. Rich Full-Bleed Backdrop (cached between frames)
+    ctx.drawImage(getLyricBackdrop(W, H, theme, accent), 0, 0);
 
     // 2. Compact Top Track HUD
     const landscape = (W / H) > 1.2;
@@ -4890,24 +5007,48 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     const align = state.textAlign || 'center';
 
     const landscape = (W/H) > 1.2;
-    let coverSize, coverX, coverY, colCx, colW, base;
+    const fullCover = !!state.classicCoverFull;
+    const coverIr = state.coverImg ? (state.coverImg.width / state.coverImg.height) : 1;
+    let coverSize, coverX, coverY, coverW, coverH, colCx, colW, base;
+    let colX0Override = null;
     if(landscape){
-      coverSize = H*0.70;
-      coverX = W*0.06;
-      coverY = (H-coverSize)/2;
-      const colX0 = coverX+coverSize+W*0.05, colX1 = W*0.94;
+      if(fullCover){
+        // Cover spans the full frame height at its natural proportions (never cropped by the frame shape);
+        // the text column keeps its normal position, so the cover sits behind the song info and waveform
+        coverH = H;
+        coverW = Math.min(H * coverIr, W * 0.62);
+        coverX = 0; coverY = 0;
+        coverSize = coverW;
+        colX0Override = W*0.06 + H*0.70 + W*0.05;
+      } else {
+        coverSize = H*0.70;
+        coverX = W*0.06;
+        coverY = (H-coverSize)/2;
+        coverW = coverH = coverSize;
+      }
+      const colX0 = (colX0Override !== null) ? colX0Override : (coverX+coverW+W*0.05), colX1 = W*0.94;
       colW = colX1-colX0;
       colCx = (colX0+colX1)/2;
       base = H*0.95;
     } else {
-      coverSize = W*0.62;
-      coverX = (W-coverSize)/2;
-      coverY = H*0.085;
+      if(fullCover){
+        // Cover spans the full frame width at its natural proportions (never cropped by the frame shape);
+        // title, artist and waveform keep their normal position and sit on top of the cover
+        coverW = W;
+        coverH = Math.min(W / coverIr, H);
+        coverX = 0; coverY = 0;
+        coverSize = W;
+      } else {
+        coverSize = W*0.62;
+        coverX = (W-coverSize)/2;
+        coverY = H*0.085;
+        coverW = coverH = coverSize;
+      }
       colW = W*0.86;
       colCx = W/2;
       base = W;
     }
-    const coverCx = coverX+coverSize/2;
+    const coverCx = coverX+coverW/2;
     const colLeft = colCx - colW/2;
     const colRight = colCx + colW/2;
     const textAnchorX = align === 'left' ? colLeft : (align === 'right' ? colRight : colCx);
@@ -4922,15 +5063,19 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       ctx.fillRect(0,0,W,H);
 
       if(state.coverImg){
-        ctx.save();
-        const glowScale = 1.9;
-        const gw = coverSize*glowScale, gh = coverSize*glowScale;
-        ctx.filter = 'blur(70px) brightness(0.55) saturate(1.3)';
-        ctx.globalAlpha = 0.9;
-        ctx.drawImage(state.coverImg, coverX-(gw-coverSize)/2, coverY-(gh-coverSize)/2*0.6, gw, gh);
-        ctx.filter = 'none';
-        ctx.globalAlpha = 1;
-        ctx.restore();
+        if(fullCover){
+          drawMirroredBlurBackdrop(ctx, W, H, state.coverImg, coverW, coverH, 0.82, 1.3, 1);
+        } else {
+          ctx.save();
+          const glowScale = 1.9;
+          const gw = coverSize*glowScale, gh = coverSize*glowScale;
+          ctx.filter = bgFilter(W, H, 0.55, 1.3);
+          ctx.globalAlpha = 0.9;
+          ctx.drawImage(state.coverImg, coverX-(gw-coverSize)/2, coverY-(gh-coverSize)/2*0.6, gw, gh);
+          ctx.filter = 'none';
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
 
         const rg = ctx.createRadialGradient(coverCx, coverY+coverSize*0.4, coverSize*0.1, coverCx, coverY+coverSize*0.4, coverSize*1.1);
         rg.addColorStop(0, hexToRgba(accent,theme.glowWithCover));
@@ -4946,41 +5091,64 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       }
 
       // cover art
+      if(fullCover && state.coverImg){
+        drawFadedCover(ctx, state.coverImg, state.coverImg.width, state.coverImg.height, coverX, coverY, coverW, coverH, !landscape, landscape ? 0.6 : 0.34);
+      } else {
       ctx.save();
-      const r = coverSize*0.055;
-      roundRectPath(ctx, coverX, coverY, coverSize, coverSize, r);
-      ctx.shadowColor = 'rgba(0,0,0,0.55)';
-      ctx.shadowBlur = W*0.03;
-      ctx.shadowOffsetY = H*0.012;
+      const r = fullCover ? 0 : coverSize*0.055;
+      roundRectPath(ctx, coverX, coverY, coverW, coverH, r);
+      if(!fullCover){
+        ctx.shadowColor = 'rgba(0,0,0,0.55)';
+        ctx.shadowBlur = W*0.03;
+        ctx.shadowOffsetY = H*0.012;
+      }
       ctx.fillStyle = theme.cardBg;
       ctx.fill();
       ctx.shadowColor = 'transparent';
       ctx.clip();
       if(state.coverImg){
         const img = state.coverImg;
-        const ir = img.width/img.height;
-        let dw=coverSize, dh=coverSize, dx=coverX, dy=coverY;
-        if(ir>1){ dw = coverSize*ir; dx = coverX-(dw-coverSize)/2; }
-        else if(ir<1){ dh = coverSize/ir; dy = coverY-(dh-coverSize)/2; }
-        ctx.drawImage(img, dx, dy, dw, dh);
+        drawCoverFit(ctx, img, img.width, img.height, coverX, coverY, coverW, coverH);
       } else {
-        const g = ctx.createLinearGradient(coverX,coverY,coverX+coverSize,coverY+coverSize);
+        const g = ctx.createLinearGradient(coverX,coverY,coverX+coverW,coverY+coverH);
         g.addColorStop(0, hexToRgba(accent,0.9));
         g.addColorStop(1, theme.coverFallbackTo);
         ctx.fillStyle = g;
-        ctx.fillRect(coverX,coverY,coverSize,coverSize);
+        ctx.fillRect(coverX,coverY,coverW,coverH);
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.font = `${coverSize*0.32}px sans-serif`;
+        ctx.font = `${Math.min(coverW,coverH)*0.32}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('♪', coverX+coverSize/2, coverY+coverSize/2 + coverSize*0.02);
+        ctx.fillText('♪', coverX+coverW/2, coverY+coverH/2 + Math.min(coverW,coverH)*0.02);
       }
       ctx.restore();
+      }
+
+      // Soft dark scrim so text stays readable where it overlaps the cover
+      if(fullCover && state.coverImg){
+        ctx.save();
+        if(landscape){
+          const sx0 = Math.max(0, colX0Override - W*0.06);
+          const sg = ctx.createLinearGradient(sx0, 0, sx0 + W*0.12, 0);
+          sg.addColorStop(0, 'rgba(0,0,0,0)');
+          sg.addColorStop(1, 'rgba(0,0,0,0.30)');
+          ctx.fillStyle = sg;
+          ctx.fillRect(sx0, 0, W - sx0, H);
+        } else {
+          const sy0 = H*0.085 + W*0.62 - H*0.02;
+          const sg = ctx.createLinearGradient(0, sy0, 0, Math.min(H, sy0 + H*0.28));
+          sg.addColorStop(0, 'rgba(0,0,0,0)');
+          sg.addColorStop(1, 'rgba(0,0,0,0.5)');
+          ctx.fillStyle = sg;
+          ctx.fillRect(0, sy0, W, H - sy0);
+        }
+        ctx.restore();
+      }
 
       // title
       const title = opts.title || '';
       const artist = opts.artist || '';
-      let textY = landscape ? H*0.27 : coverY + coverSize + H*0.075;
+      let textY = landscape ? H*0.27 : (fullCover ? (H*0.085 + W*0.62 + H*0.075) : (coverY + coverSize + H*0.075));
       ctx.textAlign = align;
       ctx.fillStyle = theme.titleColor;
       ctx.font = `700 ${base*0.052*textScale}px ${displayFont}`;
@@ -5003,12 +5171,16 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     // video as cover
     const cv = opts.coverVideo;
     if(cv && cv.videoWidth && cv.videoHeight){
-      const vw = cv.videoWidth, vh = cv.videoHeight, side = Math.min(vw, vh);
-      ctx.save();
-      roundRectPath(ctx, coverX, coverY, coverSize, coverSize, coverSize*0.055);
-      ctx.clip();
-      try{ ctx.drawImage(cv, (vw-side)/2, (vh-side)/2, side, side, coverX, coverY, coverSize, coverSize); }catch(e){}
-      ctx.restore();
+      const vw = cv.videoWidth, vh = cv.videoHeight;
+      if(fullCover){
+        try{ drawFadedCover(ctx, cv, vw, vh, coverX, coverY, coverW, coverH, !landscape, landscape ? 0.6 : 0.34); }catch(e){}
+      } else {
+        ctx.save();
+        roundRectPath(ctx, coverX, coverY, coverW, coverH, coverSize*0.055);
+        ctx.clip();
+        try{ drawCoverFit(ctx, cv, vw, vh, coverX, coverY, coverW, coverH); }catch(e){}
+        ctx.restore();
+      }
     }
 
     // waveform
@@ -5245,7 +5417,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   }
 
   function ensurePreviewStaticCache(W, H){
-    const key = [W, H, state.layoutMode, state.textSize, state.textAlign, state.fontPreset, state.customFontFamily, state.themeId, state.accent, state.title, state.artist, state.formatLabel, state.sampleRate, state.bitrateKbps, state.channels, state.coverImg ? state.coverImg.src : ''].join('|');
+    const key = [W, H, state.layoutMode, state.textSize, state.textAlign, state.classicCoverFull, state.bgBlur, state.fontPreset, state.customFontFamily, state.themeId, state.accent, state.title, state.artist, state.formatLabel, state.sampleRate, state.bitrateKbps, state.channels, state.coverImg ? state.coverImg.src : ''].join('|');
     if(!previewStaticCache || previewStaticCache.key !== key){
       previewStaticCache = {
         key,
@@ -5257,7 +5429,14 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
 
   function renderPreviewStatic(){
     if(!state.audioBuffer) return;
-    if(state.preview.playing || state.preview.paused) return;
+    // Playing: the rAF tick redraws every frame, nothing to do.
+    if(state.preview.playing) return;
+    // Paused/seeked: redraw the frame at the paused position so setting changes
+    // (and canvas resizes, which clear the canvas) show up instead of a black preview.
+    if(state.preview.paused){
+      try{ renderPreviewAt(state.preview.playFrom); }catch(e){ console.error('Paused preview render failed:', e); }
+      return;
+    }
     syncCoverVideoStatic();
     const c = $('previewCanvas');
     const clipLen = Math.max(0.01, state.rangeB-state.rangeA);
@@ -6325,10 +6504,18 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   })();
 
   $('themeSelect').addEventListener('change', (e)=>{ state.themeId = e.target.value; renderPreviewStatic(); });
-  $('layoutSelect').addEventListener('change', (e)=>{ state.layoutMode = e.target.value; renderPreviewStatic(); });
+  $('layoutSelect').addEventListener('change', (e)=>{ state.layoutMode = e.target.value; syncLayoutOnlyUI(); renderPreviewStatic(); });
+  syncLayoutOnlyUI();
   $('textSizeSelect').addEventListener('change', (e)=>{ state.textSize = e.target.value; renderPreviewStatic(); });
   $('alignSelect').addEventListener('change', (e)=>{ state.textAlign = e.target.value; renderPreviewStatic(); });
   $('lyricsBlurSelect').addEventListener('change', (e)=>{ state.lyricsEdgeBlur = (e.target.value === 'on'); renderPreviewStatic(); });
+  $('coverStyleSelect').addEventListener('change', (e)=>{ state.classicCoverFull = (e.target.value === 'full'); renderPreviewStatic(); });
+  (function(){
+    const r = $('bgBlurRange');
+    const sync = ()=>{ r.style.setProperty('--p', r.value + '%'); $('bgBlurVal').textContent = r.value + '%'; };
+    sync();
+    r.addEventListener('input', ()=>{ state.bgBlur = Number(r.value); sync(); renderPreviewStatic(); });
+  })();
   $('lyricsWordHlSelect').addEventListener('change', (e)=>{ state.lyricsWordHighlight = (e.target.value === 'on'); renderPreviewStatic(); });
   $('lyricsPartSelect').addEventListener('change', (e)=>{ state.lyricsSongPart = (e.target.value === 'on'); renderPreviewStatic(); });
   $('fontSelect').addEventListener('change', (e)=>{ state.fontPreset = e.target.value; renderPreviewStatic(); });
