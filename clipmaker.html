@@ -4952,6 +4952,16 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
 
                 for(const bw of bgRow.words){
                   const bwWidth = ctx.measureText(bw.text).width;
+                  // Word highlight off: background vocal (x-bg) is simply lit as a whole line, no sweep / pop
+                  if(!state.lyricsWordHighlight){
+                    ctx.save();
+                    ctx.globalAlpha = bgAlphaBase * 0.85;
+                    ctx.fillStyle = theme.titleColor;
+                    ctx.fillText(bw.text, bx, by);
+                    ctx.restore();
+                    bx += bwWidth;
+                    continue;
+                  }
                   const bTrimmed = bw.text.replace(/\s+$/, '');
                   const bTrimmedW = ctx.measureText(bTrimmed).width;
                   const bwDur = Math.max(0.04, bw.end - bw.start);
