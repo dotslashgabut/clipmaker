@@ -129,6 +129,12 @@
   /* seek bar under the live preview */
   .seekbar{ display:none; align-items:center; gap:10px; margin:12px 2px 0; }
   body.loaded .seekbar{ display:flex; }
+  .tp-btn{ flex:0 0 auto; width:38px; height:38px; padding:0; display:inline-grid; place-items:center; border-radius:10px; border:1px solid var(--line-strong); background:var(--surface-2, #1c1b20); color:var(--ink); cursor:pointer; transition:background .15s, transform .1s; }
+  .tp-btn:hover{ background:rgba(255,255,255,.08); }
+  .tp-btn:active{ transform:scale(.94); }
+  .tp-btn .ico{ width:18px; height:18px; display:block; }
+  .tp-play{ background:var(--amber-soft); border-color:rgba(232,163,61,.5); color:var(--amber-hi); }
+  .tp-play:hover{ background:rgba(232,163,61,.22); }
   .seekbar time{ font:500 12.5px/1 'Space Grotesk',sans-serif; font-variant-numeric:tabular-nums; color:var(--ink-2); min-width:34px; }
   .seekbar time:last-child{ text-align:right; color:var(--ink-3); }
   .seek-range{ --p:0%; -webkit-appearance:none; appearance:none; flex:1; min-width:0; height:28px; margin:0; background:transparent; cursor:pointer; touch-action:none; }
@@ -393,6 +399,8 @@
         <button type="button" class="fs-btn" id="fsBtn" title="Fullscreen preview" aria-label="Fullscreen preview"><svg class="ico-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/></svg><svg class="ico-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4"/><path d="M15 4v5h5"/><path d="M9 20v-5H4"/><path d="M15 20v-5h5"/></svg></button>
       </div>
       <div class="seekbar">
+        <button type="button" class="tp-btn tp-play" id="pvPlayBtn" title="Play / Pause" aria-label="Play"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14z" fill="currentColor"/></svg></button>
+        <button type="button" class="tp-btn" id="pvStopBtn" title="Stop" aria-label="Stop"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg></button>
         <time id="seekCur">0:00</time>
         <input type="range" class="seek-range" id="seekRange" min="0" max="1000" step="1" value="0" aria-label="Seek within clip">
         <time id="seekTotal">0:00</time>
@@ -410,10 +418,10 @@
           <div class="dz-icon" aria-hidden="true">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
           </div>
-          <div class="dz-title"><span class="txt-desktop">Drop an audio or video file here</span><span class="txt-touch">Choose an audio or video file</span></div>
-          <div class="dz-sub">MP3, WAV, M4A, OGG, FLAC, or a video (MP4, MOV, WebM, MKV) whose audio track is extracted. Tags, cover art, and embedded lyrics are read automatically.</div>
+          <div class="dz-title"><span class="txt-desktop">Drop an audio or video file here <small style="font-weight:500;opacity:.75;">(+ lyrics, optional)</small></span><span class="txt-touch">Choose an audio or video file <small style="font-weight:500;opacity:.75;">(+ lyrics, optional)</small></span></div>
+          <div class="dz-sub">MP3, WAV, M4A, OGG, FLAC, or a video (MP4, MOV, WebM, MKV) whose audio track is extracted. Tags, cover art, and embedded lyrics are read automatically. You can also select or drop a lyrics file (.lrc, .elrc, .ttml) together with the track.</div>
           <span class="btn btn-primary dz-btn">Browse files</span>
-          <input type="file" id="fileInput" accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.flac,.aac,.mp4,.m4v,.mov,.webm,.mkv,.3gp,.ogv">
+          <input type="file" id="fileInput" multiple accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.flac,.aac,.mp4,.m4v,.mov,.webm,.mkv,.3gp,.ogv,.ttml,.xml,.lrc,.elrc,.txt,text/xml,application/xml,text/plain">
         </div>
         <ul class="hero-steps"><li>Add a track</li><li>Choose the moment</li><li>Add lyrics & export</li></ul>
 
@@ -582,7 +590,7 @@
             </div>
           </div>
 
-          <div class="setting">
+          <div class="setting" data-lyrics-only>
             <span class="setting-label" id="lblLyricsBlur">Lyrics edge blur</span>
             <div class="seg" role="group" aria-labelledby="lblLyricsBlur" data-select="lyricsBlurSelect">
               <button type="button" data-value="off">Off</button>
@@ -594,7 +602,7 @@
             </select>
           </div>
 
-          <div class="setting">
+          <div class="setting" data-lyrics-only>
             <span class="setting-label" id="lblWordHl">Word highlight</span>
             <div class="seg" role="group" aria-labelledby="lblWordHl" data-select="lyricsWordHlSelect">
               <button type="button" data-value="off">Off</button>
@@ -606,7 +614,7 @@
             </select>
           </div>
 
-          <div class="setting">
+          <div class="setting" data-lyrics-only>
             <span class="setting-label" id="lblSongPart">Song part labels</span>
             <div class="seg" role="group" aria-labelledby="lblSongPart" data-select="lyricsPartSelect">
               <button type="button" data-value="off">Hide</button>
@@ -3255,6 +3263,10 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   function syncLayoutOnlyUI(){
     const el = $('coverStyleSetting');
     if(el) el.style.display = (state.layoutMode === 'classic') ? '' : 'none';
+    // Lyrics edge blur / Word highlight / Song part labels only matter in Full Lyrics
+    document.querySelectorAll('[data-lyrics-only]').forEach(n=>{
+      n.style.display = (state.layoutMode === 'lyrics') ? '' : 'none';
+    });
   }
 
   function setLayoutMode(mode){
@@ -3944,6 +3956,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     }catch(e){
       console.error('Timeline/preview render failed:', e);
     }
+    return true;
   }
 
   async function loadLyricsFile(file){
@@ -5186,8 +5199,16 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     // waveform
     const waveW = colW;
     const waveX = colCx-waveW/2;
-    const waveH = landscape ? H*0.18 : H*0.11;
-    const waveY = landscape ? H*0.50 : H*0.79;
+    const square = !landscape && Math.abs(W/H - 1) < 0.06;
+    let waveH = landscape ? H*0.18 : H*0.11;
+    let waveY = landscape ? H*0.50 : H*0.79;
+    if(square){
+      // 1:1: the text block (title/artist/info) reaches ~0.87H, so keep the waveform below it, shorter, with no time label
+      const sTitleY = fullCover ? (H*0.085 + W*0.62 + H*0.075) : (coverY + coverSize + H*0.075);
+      const sInfoY = sTitleY + H*0.048*Math.max(0.92,textScale) + H*0.042*Math.max(0.92,textScale);
+      waveY = sInfoY + H*0.028;
+      waveH = Math.max(H*0.03, Math.min(H*0.07, H*0.975 - waveY));
+    }
     const staticPeaks = state.videoPeaks || new Float32Array(VIDEO_BUCKETS);
     const n = staticPeaks.length;
     const liveBars = opts.liveBars || null;
@@ -5239,7 +5260,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     }
     ctx.shadowColor = 'transparent';
 
-    if(opts.timeLabel){
+    if(opts.timeLabel && !square){
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
       ctx.font = `400 ${base*0.022}px ${monoFont}`;
@@ -5478,6 +5499,13 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   function setPlayBtnPlaying(on){
     const b = $('previewPlayBtn');
     const lbl = (state.preview.origin==='clip' || state.preview.origin==='card') ? 'clip' : 'audio';
+    const pv = $('pvPlayBtn');
+    if(pv){
+      pv.innerHTML = on
+        ? `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>`
+        : `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14z" fill="currentColor"/></svg>`;
+      pv.setAttribute('aria-label', on ? 'Pause' : 'Play');
+    }
     b.innerHTML = on
       ? `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg><span>Pause ${lbl}</span>`
       : `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14z" fill="currentColor"/></svg><span>Play clip</span>`;
@@ -6268,7 +6296,35 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   const dz = $('dropzone'), fi = $('fileInput');
   dz.addEventListener('click', (e)=>{ if(e.target!==fi) fi.click(); });
   dz.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); fi.click(); } });
-  fi.addEventListener('change', (e)=>{ if(e.target.files[0]) loadAudioFile(e.target.files[0]); e.target.value=''; });
+  // Track + optional lyrics, picked or dropped together (any order, any number of files)
+  let pendingLyricsFile = null;
+  async function handleTrackFiles(fileList){
+    const list = Array.from(fileList || []);
+    if(!list.length) return;
+    const media  = list.find(isMediaFile);
+    const lyrics = list.find(f => !isMediaFile(f) && !isFontFile(f) && isLyricsFile(f));
+    if(media){
+      const ok = await loadAudioFile(media);
+      if(!ok) return;
+      const lf = lyrics || pendingLyricsFile;
+      pendingLyricsFile = null;
+      if(lf) await loadLyricsFile(lf);
+      return;
+    }
+    if(lyrics){
+      if(state.audioBuffer){ await loadLyricsFile(lyrics); }
+      else {
+        pendingLyricsFile = lyrics;
+        setStatus('Lyrics file ready. Now choose an audio or video track and it will be applied automatically.');
+      }
+      return;
+    }
+    const f = list[0];
+    if(isFontFile(f)) loadCustomFontFile(f);
+    else if((f.type||'').startsWith('image/') && state.audioBuffer) setCoverFromBlob(f).then(()=>renderPreviewStatic());
+    else setStatus('Please choose an audio or video file, optionally with a lyrics file (.ttml/.lrc).', true);
+  }
+  fi.addEventListener('change', (e)=>{ const files = Array.from(e.target.files||[]); e.target.value=''; handleTrackFiles(files); });
   $('changeFileBtn').addEventListener('click', ()=>fi.click());
 
   let dragDepth = 0;
@@ -6287,21 +6343,9 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     e.preventDefault();
     dragDepth = 0;
     $('dropOverlay').classList.remove('show');
-    const f = e.dataTransfer && e.dataTransfer.files[0];
-    if(!f) return;
-    if(isLyricsFile(f) && state.audioBuffer){
-      loadLyricsFile(f);
-    } else if(isFontFile(f)){
-      loadCustomFontFile(f);
-    } else if(isMediaFile(f)){
-      loadAudioFile(f);
-    } else if((f.type||'').startsWith('image/') && state.audioBuffer){
-      setCoverFromBlob(f).then(()=>renderPreviewStatic());
-    } else if(isLyricsFile(f)){
-      setStatus('Load an audio or video track first, then drop your lyrics file.', true);
-    } else {
-      setStatus('Please drop an audio, video, lyrics (.ttml/.lrc), or font file.', true);
-    }
+    const files = e.dataTransfer ? Array.from(e.dataTransfer.files||[]) : [];
+    if(!files.length) return;
+    handleTrackFiles(files);
   });
 
   // Lyrics dropzone & controls
@@ -6394,15 +6438,19 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     followPlaybackRange('B');
   });
 
-  $('previewPlayBtn').addEventListener('click', ()=>{
+  function togglePlayPause(){
+    if(!state.audioBuffer) return;
     const p = state.preview;
     if(p.playing){ pausePreview(); return; }
-    if(p.paused && p.origin==='clip'){
-      playSegment(p.playFrom, p.segEnd, 'clip');
+    if(p.paused && p.origin!=='timeline'){
+      playSegment(p.playFrom, p.segEnd, p.origin || 'clip');
     } else {
       playSegment(state.rangeA, state.rangeB, 'clip');
     }
-  });
+  }
+  $('previewPlayBtn').addEventListener('click', togglePlayPause);
+  $('pvPlayBtn').addEventListener('click', togglePlayPause);
+  $('pvStopBtn').addEventListener('click', ()=>{ if(state.audioBuffer) stopPreviewFully(); });
   $('selectAllBtn').addEventListener('click', ()=>{
     if(!state.duration) return;
     setRange(0, state.duration);
@@ -6447,16 +6495,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   document.addEventListener('keydown', (e)=>{
     if(e.key === 'Escape' && $('previewStage').classList.contains('pseudo-fs')) togglePreviewFs();
   });
-  $('previewCanvas').addEventListener('click', ()=>{
-    if(!state.audioBuffer) return;
-    const p = state.preview;
-    if(p.playing){ pausePreview(); return; }
-    if(p.paused && (p.origin==='card' || p.origin==='clip')){
-      playSegment(p.playFrom, p.segEnd, 'card');
-    } else {
-      playSegment(state.rangeA, state.rangeB, 'card');
-    }
-  });
+  $('previewCanvas').addEventListener('click', togglePlayPause);
 
   const seekRange = $('seekRange');
   const seekFromSlider = ()=>{
@@ -6585,13 +6624,14 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   ['themeSelect','aspectSelect','resSelect','fpsSelect','layoutSelect','textSizeSelect','alignSelect','lyricsBlurSelect','lyricsWordHlSelect','lyricsPartSelect','fontSelect'].forEach(id=> $(id).addEventListener('change', updateSummary));
   const origLoadAudio = loadAudioFile;
   loadAudioFile = async function(file){
-    await origLoadAudio(file);
+    const ok = await origLoadAudio(file);
     if(state.audioBuffer){
       document.body.classList.add('loaded');
       $('trackHead').hidden = false;
       updateSummary();
       $('timelinePanel').scrollIntoView({behavior:'smooth', block:'nearest'});
     }
+    return ok;
   };
   updateSummary();
 })();
