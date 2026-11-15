@@ -49,11 +49,13 @@ https://github.com/user-attachments/assets/fb7f929a-8e0b-4e46-940c-5be24c704916
 Choose **Full Lyrics** under *Video layout*. Loading lyrics in step 3 switches to it automatically.
 
 - **Lyrics formats**: TTML (`.ttml`, `.xml`) with line or word-level timing, Enhanced LRC (`[mm:ss.xx] <mm:ss.xx>word …`) and standard line-level LRC (`.lrc`, `.elrc`, `.txt`). Load a file, drop one on the lyrics box, or use **Edit / Paste**. Lyrics embedded in the audio tags are picked up automatically. Line-level lyrics get their word timings interpolated across the line.
-- **Word-by-word highlighting**: the singing word sweeps to the accent color with a soft glow and a small lift. Background vocals (`x-bg` in TTML) show smaller under their main line and fade in and out with the singer.
-- **Smooth auto scroll**: lyrics glide from line to line with eased motion that is computed from the playback time alone, so the preview, seeking and the exported video always match. The active line eases up in size, and instrumental gaps and the intro show three pulsing dots that fade in and out.
+- **Word-by-word highlighting**: the singing word sweeps to the accent color with a soft glow and a small lift. Background vocals (`x-bg` in TTML) show smaller under their main line and fade in and out with the singer. Turn **Word highlight** off to simply light up the whole current line, which suits lyrics with line-level timestamps.
+- **Accurate current line**: a line stays lit only for its own time range and dims at its end time (the end of its last word in TTML), instead of waiting for the next line to start.
+- **Smooth auto scroll**: lyrics glide from line to line with eased motion that is computed from the playback time alone, so the preview, seeking and the exported video always match. The active line eases up in size, and instrumental gaps and the intro show three pulsing dots that fade in and out. The top and bottom edges of the lyrics area fade out softly under the header and above the footer, so lines are never cut off sharply.
 - **Timing offset**: shift all lyrics earlier or later in 0.05 s steps (±5 s) to fix sync.
 - **Song part labels**: show or hide small labels such as VERSE or CHORUS above the first line of each section (*Song part labels*, on by default). They are read from `[lrc:songPart:Verse]` or `[songPart:Verse]` tags in LRC (on their own line before a section, or on the same line as a timestamped lyric) and from the `itunes:song-part` attribute on TTML `<div>` elements. Names like `PreChorus` are shown as "Pre Chorus". If the lyrics have no part tags, nothing is shown.
-- **Style options**: text size (Small, Normal, Large), alignment (left, center, right) and **Lyrics edge blur**, which softly blurs the lines toward the top and bottom of the lyrics area.
+- **Style options**: text size (Small, Normal, Large), alignment (left, center, right) and **Lyrics edge blur**, which softly blurs the lines toward the top and bottom of the lyrics area, **Word highlight** (On/Off) and **Song part labels** (Show/Hide).
+- **Progress waveform**: a slim waveform at the bottom shows playback progress. In landscape and wide frames it uses more, thinner bars.
 
 ## Usage
 
