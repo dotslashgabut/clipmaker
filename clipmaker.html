@@ -578,6 +578,18 @@
           </div>
 
           <div class="setting">
+            <span class="setting-label" id="lblWordHl">Word highlight</span>
+            <div class="seg" role="group" aria-labelledby="lblWordHl" data-select="lyricsWordHlSelect">
+              <button type="button" data-value="off">Off</button>
+              <button type="button" data-value="on">On</button>
+            </div>
+            <select id="lyricsWordHlSelect" class="sr-only" tabindex="-1" aria-hidden="true">
+              <option value="off">Off</option>
+              <option value="on" selected>On</option>
+            </select>
+          </div>
+
+          <div class="setting">
             <span class="setting-label" id="lblSongPart">Song part labels</span>
             <div class="seg" role="group" aria-labelledby="lblSongPart" data-select="lyricsPartSelect">
               <button type="button" data-value="off">Hide</button>
@@ -2458,6 +2470,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     textSize: 'md',        // 'sm' | 'md' | 'lg'
     textAlign: 'center',   // 'left' | 'center' | 'right'
     lyricsEdgeBlur: true,  // soft top & bottom blur feather on lyrics area
+    lyricsWordHighlight: true, // word-by-word sweep on the current line (off = whole line lit, good for line-level timestamps)
     lyricsSongPart: true,  // show song-part labels (Verse, Chorus...) above the first line of each section
     fontPreset: 'space',   // 'space' | 'inter' | 'mono' | 'serif' | 'custom'
     customFontFamily: null,
@@ -4213,6 +4226,16 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     return w;
   }
 
+  let _lyricLayer = null;
+  function getLyricLayer(W, h){
+    if(!_lyricLayer || _lyricLayer.c.width !== W || _lyricLayer.c.height !== h){
+      const c = document.createElement('canvas');
+      c.width = W; c.height = h;
+      _lyricLayer = { c, x: c.getContext('2d') };
+    }
+    return _lyricLayer;
+  }
+
   let _lyricScratch = null;
   function getLyricScratch(W, h){
     if(!_lyricScratch || _lyricScratch.c.width !== W || _lyricScratch.c.height < h){
@@ -4370,12 +4393,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const easeSine = (x) => 0.5 - 0.5 * Math.cos(Math.PI * clamp(x, 0, 1));
       const nLines = lines.length;
       // Time at which a line stops being the "current" (lit) line
-      const stopOf = (i) => {
-        const nx = lines[i + 1];
-        if(!nx) return Infinity;
-        if(nx.start - lines[i].end > INTERLUDE_GAP) return lines[i].end + 0.6;
-        return Math.max(lines[i].end, nx.start);
-      };
+      const stopOf = (i) => lines[i].end;
 
       let activeIdx = 0;
       for(let i = 0; i < nLines; i++){
@@ -4417,10 +4435,18 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const lineGap = baseLyricSize * 0.72;
       const rowHeight = baseLyricSize * 1.24;
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(0, lyricsTop, W, lyricsAreaH);
-      ctx.clip();
+      // Lyrics are drawn onto their own layer so the top/bottom edges can fade smoothly instead of being cut off
+      const outCtx = ctx;
+      const lyrLayer = getLyricLayer(W, Math.ceil(lyricsAreaH));
+      const lctx = lyrLayer.x;
+      lctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.clearRect(0, 0, W, lyrLayer.c.height);
+      lctx.save();
+      lctx.translate(0, -lyricsTop);
+      lctx.beginPath();
+      lctx.rect(0, lyricsTop, W, lyricsAreaH);
+      lctx.clip();
+      ctx = lctx;
 
       // Pre-measure visible window of lines around activeIdx
       const startWin = Math.max(0, activeIdx - 6);
@@ -4633,6 +4659,16 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
                   ctx.restore();
                 }
               } else {
+                // Word highlight off: the whole current line is simply lit (ideal for line-level timestamps)
+                if(!state.lyricsWordHighlight){
+                  ctx.save();
+                  ctx.globalAlpha = edgeAlpha;
+                  ctx.fillStyle = theme.titleColor;
+                  ctx.fillText(w.text, curX, rowY);
+                  ctx.restore();
+                  curX += wWidth;
+                  continue;
+                }
                 // Active singing line: always 100% sharp with word-by-word karaoke sweep + spring pop
                 const wDur = Math.max(0.04, w.end - w.start);
                 const wProg = clamp((trackTime - w.start) / wDur, 0, 1);
@@ -4771,7 +4807,24 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         }
       }
 
-      ctx.restore();
+      lctx.restore();
+      ctx = outCtx;
+      {
+        const fz = Math.min(lyricsAreaH * 0.2, H * 0.1);
+        const fr = fz / lyrLayer.c.height;
+        lctx.save();
+        lctx.setTransform(1, 0, 0, 1, 0, 0);
+        lctx.globalCompositeOperation = 'destination-in';
+        const mask = lctx.createLinearGradient(0, 0, 0, lyrLayer.c.height);
+        mask.addColorStop(0, 'rgba(0,0,0,0)');
+        mask.addColorStop(fr, 'rgba(0,0,0,1)');
+        mask.addColorStop(1 - fr, 'rgba(0,0,0,1)');
+        mask.addColorStop(1, 'rgba(0,0,0,0)');
+        lctx.fillStyle = mask;
+        lctx.fillRect(0, 0, W, lyrLayer.c.height);
+        lctx.restore();
+        outCtx.drawImage(lyrLayer.c, 0, lyricsTop);
+      }
     }
 
     // 4. Sleek Bottom Waveform + Progress Strip
@@ -4780,20 +4833,30 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     const barTrackW = W - padX * 2;
     const miniWaveH = Math.max(12, Math.min(W, H) * 0.032);
     const staticPeaks = state.videoPeaks || new Float32Array(VIDEO_BUCKETS);
-    const nBars = staticPeaks.length;
+    const srcBars = staticPeaks.length;
+    // Landscape / wide frames get more (and slightly thinner) bars; values are interpolated between the analysed bars
+    const nBars = landscape ? Math.round(srcBars * 1.7) : srcBars;
     const liveBars = opts.liveBars || null;
-    const gap = barTrackW * 0.008;
+    const gap = barTrackW * (landscape ? 0.0042 : 0.008);
     const bW = (barTrackW - gap * (nBars - 1)) / nBars;
+    const barAt = (arr, i) => {
+      if(nBars === srcBars) return arr[i];
+      const x = i * (srcBars - 1) / (nBars - 1);
+      const i0 = Math.floor(x), i1 = Math.min(srcBars - 1, i0 + 1);
+      return arr[i0] + (arr[i1] - arr[i0]) * (x - i0);
+    };
 
     ctx.save();
     for(let i = 0; i < nBars; i++){
-      const amp = liveBars ? Math.max(liveBars[i], staticPeaks[i] * 0.2) : staticPeaks[i] * 0.85;
+      const sPeak = barAt(staticPeaks, i);
+      const amp = liveBars ? Math.max(barAt(liveBars, i), sPeak * 0.2) : sPeak * 0.85;
       const bh = Math.max(3, amp * miniWaveH);
+      const drawW = bW;
       const bx = barTrackX + i * (bW + gap);
       const by = footY - bh / 2;
       const played = progress !== null && (i / (nBars - 1)) <= progress;
       ctx.fillStyle = played ? accent : 'rgba(255,255,255,0.22)';
-      roundRectPath(ctx, bx, by, bW, bh, Math.min(bW/2, 2));
+      roundRectPath(ctx, bx, by, drawW, bh, Math.min(drawW/2, 2));
       ctx.fill();
     }
     ctx.restore();
@@ -6266,6 +6329,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   $('textSizeSelect').addEventListener('change', (e)=>{ state.textSize = e.target.value; renderPreviewStatic(); });
   $('alignSelect').addEventListener('change', (e)=>{ state.textAlign = e.target.value; renderPreviewStatic(); });
   $('lyricsBlurSelect').addEventListener('change', (e)=>{ state.lyricsEdgeBlur = (e.target.value === 'on'); renderPreviewStatic(); });
+  $('lyricsWordHlSelect').addEventListener('change', (e)=>{ state.lyricsWordHighlight = (e.target.value === 'on'); renderPreviewStatic(); });
   $('lyricsPartSelect').addEventListener('change', (e)=>{ state.lyricsSongPart = (e.target.value === 'on'); renderPreviewStatic(); });
   $('fontSelect').addEventListener('change', (e)=>{ state.fontPreset = e.target.value; renderPreviewStatic(); });
   $('aspectSelect').addEventListener('change', ()=>{ setupPreviewCanvas(); renderPreviewStatic(); });
@@ -6331,7 +6395,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   }
   const origSetRange = setRange;
   setRange = function(a,b){ origSetRange(a,b); updateSummary(); };
-  ['themeSelect','aspectSelect','resSelect','fpsSelect','layoutSelect','textSizeSelect','alignSelect','lyricsBlurSelect','lyricsPartSelect','fontSelect'].forEach(id=> $(id).addEventListener('change', updateSummary));
+  ['themeSelect','aspectSelect','resSelect','fpsSelect','layoutSelect','textSizeSelect','alignSelect','lyricsBlurSelect','lyricsWordHlSelect','lyricsPartSelect','fontSelect'].forEach(id=> $(id).addEventListener('change', updateSummary));
   const origLoadAudio = loadAudioFile;
   loadAudioFile = async function(file){
     await origLoadAudio(file);
