@@ -6,7 +6,7 @@
 
 Turn a song (or the audio of a video) into a shareable vertical-friendly video clip, entirely in your browser.
 
-ClipMaker is a **single-file web app** (`clipmaker.html`). Pick the part of a track you like (or load a video and use its audio), and it renders either an animated card with cover art, title, artist, track details and a live waveform, or a full-screen **word-by-word synced lyrics** view, then exports it as a video ready to post. Nothing is uploaded: decoding, rendering and encoding all happen locally.
+ClipMaker is a **single-file web app** (`clipmaker.html`). Pick the part of a track you like (or load a video and use its audio), and it renders either an animated card with cover art, title, artist, track details and a live waveform, a full-screen **word-by-word synced lyrics** view, or a playful **Bubble Game** layout where each word or line floats by as an emoji bubble, then exports it as a video ready to post. Nothing is uploaded: decoding, rendering and encoding all happen locally.
 
 <table>
 <tr>
@@ -28,15 +28,16 @@ ClipMaker is a **single-file web app** (`clipmaker.html`). Pick the part of a tr
   - New tracks start with the first 30 s selected. Minimum selection length: 0.3 s.
 - **Live preview** rendered on a canvas, with a **seek bar** to scrub inside the selected clip. Tap the card or press <kbd>Space</kbd> to play or pause. Use the corner button for a **fullscreen preview** (press <kbd>Esc</kbd> or the same button to leave). The preview is rendered at a higher resolution in fullscreen so it stays sharp. Browsers without the Fullscreen API for elements, such as iPhone Safari, get a full-window overlay instead.
 - **Play clip and Loop**: audition the selection with **Play clip**, and switch on **Loop** to repeat it while you fine-tune the handles.
-- **Two video layouts**
+- **Three video layouts**
   - **Classic Card**: cover art, title, artist, track details and a live waveform visualizer.
   - **Full Lyrics**: synced lyrics fill the frame, with the title, artist and cover in a compact header. See [Full Lyrics layout](#full-lyrics-layout).
+  - **Bubble Game**: lyrics float across the screen as cute emoji (or your own PNG/SVG) bubbles with word- or line-level text bubbles, like a rhythm game. See [Bubble Game layout](#bubble-game-layout).
 - **Video as cover** (off by default): when you load a video, a **Use video as cover** toggle appears under *Style and format*. When on, the actual video plays inside the cover slot, in the preview and in the exported clip, instead of a still frame. The still cover is still used for the background glow. In the offline export every frame is seeked exactly, so this makes the export slower than a still cover. Removing the cover turns the option off.
 - **Themes**: Amber Glow, Midnight Blue, Mono Noir, Sunset Punch, Neon Pulse. Amber Glow takes its accent color from the cover art.
 - **Typography**: Space Grotesk, Inter, JetBrains Mono, Serif Editorial, or your own font file (Custom Font).
 - **Frame shapes**: 4:5, 1:1, 9:16, 2:3, 3:2, 16:9.
 - **Quality**: 720p or 1080p (the long edge of the frame is 1280 or 1920 px).
-- **Frame rate**: 30 or 24 fps.
+- **Frame rate**: 60, 30 or 24 fps (Bubble Game switches to 60 fps automatically).
 - **Fast, frame-accurate export** to MP4 (H.264 + AAC) where the browser supports WebCodecs, with an automatic real-time fallback elsewhere (see [Browser support](#browser-support)). The progress label shows the rendering speed and an estimated time left.
 - **Audio-only export**: **Export audio** saves just the selected part as an audio file, without rendering a video. It produces an M4A (AAC, 192 kbps, 48 kHz) where the browser can encode AAC, and a lossless 16-bit WAV at the source sample rate otherwise. This also works for tracks loaded from a video, so you can use it to rip the audio of a video clip.
 - **Progress and cancel**: a sticky action bar shows the selected length and export progress, and you can cancel an export at any time.
@@ -46,7 +47,7 @@ https://github.com/user-attachments/assets/fb7f929a-8e0b-4e46-940c-5be24c704916
 
 ## Full Lyrics layout
 
-Choose **Full Lyrics** under *Video layout*. Loading lyrics in step 3 switches to it automatically.
+Choose **Full Lyrics** under *Video layout*. Loading lyrics in step 3 switches to it automatically when you are on Classic Card (it never overrides Bubble Game).
 
 - **Lyrics formats**: TTML (`.ttml`, `.xml`) with line or word-level timing, Enhanced LRC (`[mm:ss.xx] <mm:ss.xx>word …`) and standard line-level LRC (`.lrc`, `.elrc`, `.txt`). Load a file, drop one on the lyrics box, or use **Edit / Paste**. Lyrics embedded in the audio tags are picked up automatically. Line-level lyrics get their word timings interpolated across the line.
 - **Word-by-word highlighting**: the singing word sweeps to the accent color with a soft glow and a small lift. Background vocals (`x-bg` in TTML) show smaller under their main line and fade in and out with the singer. Turn **Word highlight** off to simply light up the whole current line, which suits lyrics with line-level timestamps.
@@ -57,13 +58,27 @@ Choose **Full Lyrics** under *Video layout*. Loading lyrics in step 3 switches t
 - **Style options**: text size (Small, Normal, Large), alignment (left, center, right) and **Lyrics edge blur**, which softly blurs the lines toward the top and bottom of the lyrics area, **Word highlight** (On/Off) and **Song part labels** (Show/Hide).
 - **Progress waveform**: a slim waveform at the bottom shows playback progress. In landscape and wide frames it uses more, thinner bars.
 
+## Bubble Game layout
+
+Choose **Bubble Game** under *Video layout*. It needs lyrics (TTML, Enhanced LRC or LRC, see [Full Lyrics layout](#full-lyrics-layout)) and uses the same timing offset.
+
+- **How it plays**: every word (or line) appears as a round, glassy bubble with an icon, and a speech bubble with the text below it. All bubbles travel at the same constant speed and pass a dashed **hit line** exactly when their word starts. At that moment the bubble hops, sparkles, and its speech bubble lights up in the accent color, so upcoming words are always visible coming in. Heights (or horizontal positions) are random-looking but fixed per word, and everything is computed from the playback time alone, so the preview, seeking and the exported video always match.
+- **Bubble direction**: Right → Left (default), Left → Right, Top → Bottom or Bottom → Top. Vertical directions stay above the bottom HUD and fade softly at its edge.
+- **Bubble text**: **Words** (word-level bubbles; line-level lyrics get interpolated word timings) or **Lines** (whole lines, wrapped up to three rows).
+- **Bubble icons**
+  - **Emoji**: type your own list in the text field, separated by spaces (ZWJ and skin-tone emoji work too). Icons are picked pseudo-randomly per word.
+  - **Custom PNG / SVG**: press **Upload PNG / SVG icons** and pick one or more files (PNG, SVG, WebP or JPEG). They are used in rotation instead of emoji. SVGs without a pixel size are handled automatically. Press the ✕ on the icon count to remove them.
+- **HUD**: cover thumbnail, title and artist, a ⭐ score counting the words passed so far, and a level-style progress bar with a star at its end.
+- **Shared options**: theme, text size, typography (including a custom font), background blur, frame shape and quality all apply. Lyrics edge blur, Word highlight and Song part labels are Full Lyrics options and are hidden here.
+- **Smooth motion**: constant-speed motion looks choppy at 24/30 fps, so choosing Bubble Game switches the frame rate to 60 fps (you can change it back). Its effects use crisp halos and shadows instead of soft blurs, and the offline export uses a higher bitrate for this layout (8 Mbps at 720p and 14 Mbps at 1080p, 1.5× at 60 fps) so fast-moving bubbles don't smear.
+
 ## Usage
 
 1. Open the app and drop in a track or a video file.
 2. Check the title, artist and cover art.
 3. Choose the clip on the timeline, using the handles, the time fields or **Select all**. Use **Play clip** and **Loop** to check it.
 4. Optional: load lyrics (TTML or LRC) for the Full Lyrics layout.
-5. Pick a layout, theme, frame shape, quality and frame rate.
+5. Pick a layout (for Bubble Game also the direction, text unit and icons), theme, frame shape, quality and frame rate.
 6. Press **Export video**. When it finishes, preview the result and press **Download video**. The file is named `<title> - clip.mp4` (or `.webm` in the fallback mode).
 7. Optional: press **Export audio** instead (or as well) to download only the selected audio, named `<title> - audio.m4a` (or `.wav`). The layout, theme, frame shape, quality and frame rate settings don't affect it.
 
@@ -111,8 +126,8 @@ If neither path can produce a video, the app shows an error instead of exporting
 
 - **Decoding & tags**: `decodeAudioData` for audio (it also pulls the audio track out of video containers), with small built-in parsers for ID3, FLAC and MP4 metadata.
 - **Waveform & visualizer**: peaks are precomputed for the timeline. The preview uses a live `AnalyserNode`. The offline export feeds the same visualizer code from the rendered PCM at each frame's time.
-- **Lyrics**: TTML and (enhanced) LRC are parsed into lines of timed words. The Full Lyrics renderer works out the scroll position, line sizes and word highlighting purely from the playback time, and caches word measurements between frames.
-- **Rendering**: one shared `renderFrame()` canvas routine draws both the live preview and the exported video, so what you see is what you get. Themes are plain data objects, and the static parts of the card are cached between frames.
+- **Lyrics**: TTML and (enhanced) LRC are parsed into lines of timed words. The Full Lyrics renderer works out the scroll position, line sizes and word highlighting purely from the playback time, and caches word measurements between frames. The Bubble Game renderer likewise derives every bubble's position, pulse and highlight from the playback time and caches the word list.
+- **Rendering**: one shared `renderFrame()` canvas routine (dispatching to the Classic, Full Lyrics or Bubble Game renderer) draws both the live preview and the exported video, so what you see is what you get. Themes are plain data objects, and the static parts of the card are cached between frames.
 - **Export**: see [Browser support](#browser-support). Frame sizes are rounded to even pixel dimensions, as video encoders require.
 
 ## Project structure
@@ -125,7 +140,8 @@ README.md
 
 ## Notes & limitations
 
-- In the offline path, export time depends on your device, not on the clip length. The Full Lyrics layout at 1080p is the heaviest to render. In the real-time fallback it takes roughly as long as the clip itself (a 30 s clip takes about 30 s), and you should keep the tab open and in the foreground while it runs.
+- In the offline path, export time depends on your device, not on the clip length. The Full Lyrics layout at 1080p is the heaviest to render, and 60 fps doubles the number of frames to render and encode compared with 30 fps. In the real-time fallback it takes roughly as long as the clip itself (a 30 s clip takes about 30 s), and you should keep the tab open and in the foreground while it runs.
+- Bubble Game in the real-time fallback (`MediaRecorder`) can drop frames on slower devices, which shows up as choppy motion. Prefer a browser with WebCodecs (Chrome or Edge) for this layout. In fast passages, word-level bubbles can partly overlap.
 - Audio-only export is always offline and applies no fades, normalization or effects. The selected range is exported as is.
 - Exporting is silent in both paths: audio is recorded into the video but not played through your speakers.
 - The output container (MP4 or WebM) depends on what your browser can encode. Offline export always produces MP4.
